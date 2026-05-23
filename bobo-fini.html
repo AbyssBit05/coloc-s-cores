@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coloc's Chores — Bobo fini</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<nav class="navbar">
+  <span class="navbar-brand">🏠 Coloc's Chores</span>
+  <a href="index.html"         class="nav-link"><span class="nav-emoji">🏡</span> Accueil</a>
+  <a href="bobo-fini.html"     class="nav-link active"><span class="nav-emoji">✅</span> Bobo fini</a>
+  <a href="qui-qui-bosse.html" class="nav-link"><span class="nav-emoji">🏆</span> Classement</a>
+  <a href="requetes.html"      class="nav-link"><span class="nav-emoji">📝</span> Requêtes</a>
+  <a href="historique.html"    class="nav-link"><span class="nav-emoji">📚</span> Historique</a>
+</nav>
+
+<main class="container">
+  <h1 class="page-title">✅ Bobo fini !</h1>
+
+  <div class="card">
+    <div class="card-title">📋 Tableau des tâches</div>
+    <div id="noTaskMsg" class="empty-state" style="display:none;">
+      <span class="empty-emoji">🧹</span>
+      Aucune tâche validée. <a href="index.html" style="color:var(--green);font-weight:700;">Ajoute des tâches</a> d'abord !
+    </div>
+    <div class="table-wrap" id="tableWrap">
+      <table id="completionTable">
+        <thead id="completionHead"></thead>
+        <tbody id="completionBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="data.js"></script>
+<script src="session.js"></script>
+<script>
+  window.onUserSelected = async function () { await renderTable(); };
+
+  function showToast(msg, type = 'success') {
+    const tc = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = msg;
+    tc.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  }
+
+  // ── Tableau ───────────────────────────────────────────────────────────────────
+
+  async function renderTable() {
+    const user  = getCurrentUser();
+    const [bobos, tasks, occs] = await Promise.all([
+      getBobos(),
+      getTasks(),
+      getAllCompletionsForWeek(),
+    ]);
+    const validTasks = tasks.filter(t => t.status === 'validated');
+
+    // Lookup rapide : "tacheId_boboId" → count
+    const occMap = {};
+    occs.forEach(o => { occMap[`${o.tache_id}_${o.bobo_id}`] = o.count; });
+
+    const thead  = document.getElementById('completionHead');
+    const tbody  = document.getElementById('completionBody');
+    const noTask = document.getElementById('noTaskMsg');
+    const wrap   = document.getElementById('tableWrap');
+
+    thead.innerHTML = '';
+    tbody.innerHTML = '';
+
+    if (!validTasks.length) {
+      noTask.style.display = 'block';
+      wrap.style.display   = 'none';
+      return;
+    }
+    noTask.style.display = 'none';
+    wrap.style.display   = '';
+
+    // En-tête
+    const trHead = document.createElement('tr');
+    const thTask = document.createElement('th');
+    thTask.className = 'col-task';
+    thTask.textContent = 'Tâche';
+    trHead.appendChild(thTask);
+
+    const thCred = document.createElement('th');
+    thCred.textContent = '⭐';
+    trHead.appendChild(thCred);
+
+    bobos.forEach(bobo => {
+      const th = document.createElement('th');
+      th.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+          <span>${bobo.nom.slice(0,2).toUpperCase()}</span>
+          <span style="font-size:0.8rem;font-weight:400;">${bobo.nom}</span>
+        </div>`;
+      if (user && user.id === bobo.id) th.className = 'col-active';
+      trHead.appendChild(th);
+    });
+    thead.appendChild(trHead);
+
+    // Lignes
+    validTasks.forEach(task => {
+      const tr = document.createElement('tr');
+
+      const tdName = document.createElement('td');
+      tdName.className = 'col-task';
+      tdName.textContent = task.name;
+      tr.appendChild(tdName);
+
+      const tdCred = document.createElement('td');
+      tdCred.innerHTML = `<span class="badge badge-green">${task.credits}</span>`;
+      tr.appendChild(tdCred);
+
+      bobos.forEach(bobo => {
+        const td      = document.createElement('td');
+        const isActive = user && user.id === bobo.id;
+        td.className  = isActive ? 'col-active' : 'col-locked';
+
+        const count = occMap[`${task.id}_${bobo.id}`] || 0;
+        td.appendChild(makeDotCell(task.id, bobo.id, count, isActive));
+        tr.appendChild(td);
+      });
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  // count est passé directement (pré-chargé) — pas d'appel async ici
+  function makeDotCell(taskId, boboId, count, isActive) {
+    const wrap = document.createElement('div');
+    wrap.className = 'dot-cell';
+
+    for (let i = 0; i < count; i++) {
+      const dot = document.createElement('span');
+      dot.className = 'dot filled';
+      if (isActive) {
+        dot.title = 'Cliquer pour annuler la dernière occurrence';
+        dot.onclick = async () => {
+          dot.style.opacity = '0.5';
+          await decrementCompletion(taskId, boboId);
+          await renderTable();
+        };
+      }
+      wrap.appendChild(dot);
+    }
+
+    if (isActive) {
+      const add = document.createElement('span');
+      add.className = 'dot-add';
+      add.textContent = '+';
+      add.title = 'Marquer une occurrence';
+      add.onclick = async () => {
+        add.style.opacity = '0.5';
+        await incrementCompletion(taskId, boboId);
+        await renderTable();
+      };
+      wrap.appendChild(add);
+    }
+
+    if (!isActive && count === 0) {
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      wrap.appendChild(dot);
+    }
+
+    return wrap;
+  }
+
+  renderTable();
+</script>
+
+</body>
+</html>

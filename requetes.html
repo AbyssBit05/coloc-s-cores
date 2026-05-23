@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coloc's Chores — Requêtes</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<nav class="navbar">
+  <span class="navbar-brand">🏠 Coloc's Chores</span>
+  <a href="index.html"         class="nav-link"><span class="nav-emoji">🏡</span> Accueil</a>
+  <a href="bobo-fini.html"     class="nav-link"><span class="nav-emoji">✅</span> Bobo fini</a>
+  <a href="qui-qui-bosse.html" class="nav-link"><span class="nav-emoji">🏆</span> Classement</a>
+  <a href="requetes.html"      class="nav-link active"><span class="nav-emoji">📝</span> Requêtes</a>
+  <a href="historique.html"    class="nav-link"><span class="nav-emoji">📚</span> Historique</a>
+</nav>
+
+<main class="container">
+  <h1 class="page-title">📝 Requêtes de crédits</h1>
+
+  <div class="two-col">
+
+    <div>
+      <div class="card">
+        <div class="card-title">✍️ Nouvelle requête</div>
+        <div class="form-group">
+          <label class="form-label">Décris la situation</label>
+          <textarea id="reqSituation" class="form-input"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Requête de crédit</label>
+          <input type="text" id="reqDemand" class="form-input" />
+          <p style="font-size:0.8rem;color:var(--gray-400);margin-top:4px;">
+            Format : "retirer X crédits à Prénom" ou "ajouter X crédits à Prénom"
+          </p>
+        </div>
+        <button class="btn btn-primary" onclick="handleAddRequest()">📤 Envoyer la requête</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="card-title">📋 Requêtes en cours</div>
+        <div id="requestList"></div>
+        <div id="emptyRequests" class="empty-state" style="display:none;">
+          <span class="empty-emoji">📭</span> Aucune requête en cours !
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="data.js"></script>
+<script src="session.js"></script>
+<script>
+  window.onUserSelected = async function () { await renderRequests(); };
+
+  function showToast(msg, type = 'success') {
+    const tc = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = msg;
+    tc.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  }
+
+  // ── Formulaire ────────────────────────────────────────────────────────────────
+
+  async function handleAddRequest() {
+    const situation = document.getElementById('reqSituation').value.trim();
+    const demande   = document.getElementById('reqDemand').value.trim();
+    if (!situation) { showToast('Décris la situation !', 'error'); return; }
+    if (!demande)   { showToast('Précise ta demande !', 'error'); return; }
+
+    const user = getCurrentUser();
+    await addRequest(situation, demande, user ? user.name : null);
+    document.getElementById('reqSituation').value = '';
+    document.getElementById('reqDemand').value    = '';
+    await renderRequests();
+    showToast('Requête envoyée ! 📤');
+  }
+
+  // ── Vote ──────────────────────────────────────────────────────────────────────
+
+  async function handleVoteRequest(requestId, isLike) {
+    const user = getCurrentUser();
+    if (!user) { showToast('Identifie-toi pour voter !', 'error'); return; }
+
+    const result = await voteRequest(requestId, user.id, isLike);
+    if (!result) return;
+
+    if (result.status === 'approved') {
+      const ar = result.applyResult;
+      if (ar && ar.ok) {
+        const verb = ar.action === 'retirer' ? 'retirés à' : 'ajoutés à';
+        showToast(`✅ Approuvée ! ${ar.amount} crédits ${verb} ${ar.boboName}.`);
+      } else {
+        showToast(`✅ Approuvée, mais : ${ar ? ar.reason : 'erreur inconnue'}`, 'error');
+      }
+    } else if (result.status === 'rejected') {
+      showToast('Requête rejetée. ❌');
+    } else {
+      showToast('Vote enregistré !');
+    }
+
+    await renderRequests();
+  }
+
+  // ── Rendu ─────────────────────────────────────────────────────────────────────
+
+  async function renderRequests() {
+    const [requests, bobos] = await Promise.all([getRequests(), getBobos()]);
+    const user  = getCurrentUser();
+    const list  = document.getElementById('requestList');
+    const empty = document.getElementById('emptyRequests');
+
+    list.innerHTML = '';
+    if (!requests.length) { empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+
+    const pending  = requests.filter(r => r.status === 'pending');
+    const resolved = requests.filter(r => r.status !== 'pending');
+
+    if (pending.length) {
+      const h = document.createElement('div');
+      h.style.cssText = 'font-family:Fredoka,sans-serif;color:var(--amber);font-size:1rem;margin-bottom:10px;';
+      h.textContent = '⏳ En attente de vote';
+      list.appendChild(h);
+      pending.forEach(req => list.appendChild(makeRequestCard(req, bobos, user, true)));
+    }
+
+    if (resolved.length) {
+      const h = document.createElement('div');
+      h.style.cssText = 'font-family:Fredoka,sans-serif;color:var(--gray-600);font-size:1rem;margin:16px 0 10px;';
+      h.textContent = '📁 Traitées';
+      list.appendChild(h);
+      resolved.forEach(req => list.appendChild(makeRequestCard(req, bobos, user, false)));
+    }
+  }
+
+  function makeRequestCard(req, bobos, user, isActive) {
+    const div = document.createElement('div');
+    div.className = 'request-item';
+
+    let statusBadge = '';
+    if (req.status === 'approved')  statusBadge = '<span class="badge badge-green">✅ Approuvée</span>';
+    else if (req.status === 'rejected') statusBadge = '<span class="badge badge-red">❌ Rejetée</span>';
+    else statusBadge = '<span class="badge badge-amber">⏳ En cours</span>';
+
+    const sitEl = document.createElement('div');
+    sitEl.className = 'request-situation';
+    sitEl.innerHTML = `📋 ${escHtml(req.situation)} ${statusBadge}`;
+    div.appendChild(sitEl);
+
+    const demEl = document.createElement('div');
+    demEl.className = 'request-demand';
+    demEl.innerHTML = `➡️ <em>${escHtml(req.demand)}</em>`;
+    div.appendChild(demEl);
+
+    const voteRow = document.createElement('div');
+    voteRow.className = 'vote-row';
+    voteRow.style.marginTop = '10px';
+
+    const likerNames    = req.likes.map(id    => (bobos.find(b => b.id === id) || {}).nom || '?');
+    const dislikerNames = req.dislikes.map(id => (bobos.find(b => b.id === id) || {}).nom || '?');
+    const notVoted      = bobos.filter(b => ![...req.likes, ...req.dislikes].includes(b.id));
+
+    if (isActive) {
+      const likedByMe    = user && req.likes.includes(user.id);
+      const dislikedByMe = user && req.dislikes.includes(user.id);
+
+      const btnLike = document.createElement('button');
+      btnLike.className = 'vote-btn like' + (likedByMe ? ' voted' : '');
+      btnLike.innerHTML = `👍 ${req.likes.length}`;
+      btnLike.onclick = () => handleVoteRequest(req.id, true);
+      voteRow.appendChild(btnLike);
+
+      if (likerNames.length) {
+        const s = document.createElement('span');
+        s.className = 'voter-names';
+        s.textContent = likerNames.join(', ');
+        voteRow.appendChild(s);
+      }
+
+      const btnDislike = document.createElement('button');
+      btnDislike.className = 'vote-btn dislike' + (dislikedByMe ? ' voted' : '');
+      btnDislike.innerHTML = `👎 ${req.dislikes.length}`;
+      btnDislike.onclick = () => handleVoteRequest(req.id, false);
+      voteRow.appendChild(btnDislike);
+
+      if (dislikerNames.length) {
+        const s = document.createElement('span');
+        s.className = 'voter-names';
+        s.textContent = dislikerNames.join(', ');
+        voteRow.appendChild(s);
+      }
+
+      if (notVoted.length) {
+        const nv = document.createElement('span');
+        nv.className = 'voter-names';
+        nv.textContent = '⏳ pas encore voté : ' + notVoted.map(b => b.nom).join(', ');
+        voteRow.appendChild(nv);
+      }
+    } else {
+      const summary = document.createElement('span');
+      summary.className = 'voter-names';
+      summary.textContent = `👍 ${req.likes.length} · 👎 ${req.dislikes.length}`;
+      voteRow.appendChild(summary);
+
+      if (req.status === 'approved' && req.applyResult) {
+        const ar = req.applyResult;
+        const info = document.createElement('span');
+        if (ar.ok) {
+          const verb = ar.action === 'retirer' ? 'retirés à' : 'ajoutés à';
+          info.style.cssText = 'font-size:0.82rem;font-weight:700;color:var(--green-dark);';
+          info.textContent = `→ ${ar.amount} crédits ${verb} ${ar.boboName}`;
+        } else {
+          info.style.cssText = 'font-size:0.82rem;color:var(--red);';
+          info.textContent = `⚠️ ${ar.reason}`;
+        }
+        voteRow.appendChild(info);
+      }
+    }
+
+    div.appendChild(voteRow);
+    return div;
+  }
+
+  function escHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  renderRequests();
+</script>
+
+</body>
+</html>

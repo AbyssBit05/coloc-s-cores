@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coloc's Chores — Classement</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<nav class="navbar">
+  <span class="navbar-brand">🏠 Coloc's Chores</span>
+  <a href="index.html"         class="nav-link"><span class="nav-emoji">🏡</span> Accueil</a>
+  <a href="bobo-fini.html"     class="nav-link"><span class="nav-emoji">✅</span> Bobo fini</a>
+  <a href="qui-qui-bosse.html" class="nav-link active"><span class="nav-emoji">🏆</span> Classement</a>
+  <a href="requetes.html"      class="nav-link"><span class="nav-emoji">📝</span> Requêtes</a>
+  <a href="historique.html"    class="nav-link"><span class="nav-emoji">📚</span> Historique</a>
+</nav>
+
+<main class="container">
+  <h1 class="page-title">🏆 Qui qui bosse ?</h1>
+
+  <div id="firstPlaceCard" style="display:none;"></div>
+
+  <div class="card" style="margin-top:0;">
+    <div class="card-title">📊 Classement de la semaine</div>
+    <div id="rankingList" class="ranking-list"></div>
+    <div id="emptyRanking" class="empty-state" style="display:none;">
+      <span class="empty-emoji">😴</span>
+      Personne n'a encore bossé cette semaine… ou y'a personne dans la coloc !
+    </div>
+  </div>
+
+  <div id="lastPlaceSection" style="display:none;margin-top:16px;"></div>
+
+</main>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="data.js"></script>
+<script src="session.js"></script>
+<script>
+  function makeAvatarEl(bobo, size = 30) {
+    const el = document.createElement('div');
+    el.className = 'avatar';
+    el.style.width  = size + 'px';
+    el.style.height = size + 'px';
+    el.style.fontSize = (size * 0.4) + 'px';
+    const photo = bobo.photo_url || bobo.photo;
+    if (photo) {
+      const img = document.createElement('img');
+      img.src = photo;
+      el.appendChild(img);
+    } else {
+      el.textContent = (bobo.nom || bobo.name).slice(0, 2).toUpperCase();
+    }
+    return el;
+  }
+
+  async function render() {
+    const [rankings, winGage] = await Promise.all([getRankings(), getWinningGage()]);
+
+    const firstCard      = document.getElementById('firstPlaceCard');
+    const rankingList    = document.getElementById('rankingList');
+    const emptyRanking   = document.getElementById('emptyRanking');
+    const lastSection    = document.getElementById('lastPlaceSection');
+
+    rankingList.innerHTML = '';
+    firstCard.innerHTML   = '';
+    lastSection.innerHTML = '';
+
+    if (!rankings.length) {
+      emptyRanking.style.display = 'block';
+      firstCard.style.display    = 'none';
+      lastSection.style.display  = 'none';
+      return;
+    }
+    emptyRanking.style.display = 'none';
+
+    const maxCredits = Math.max(...rankings.map(r => r.totalCredits), 1);
+    const first = rankings[0];
+
+    // ── Card 1er ─────────────────────────────────────────────────────────────
+    firstCard.style.display = 'block';
+    const fpCard = document.createElement('div');
+    fpCard.className = 'first-place-card';
+    fpCard.style.marginBottom = '20px';
+
+    const fpAvatar = document.createElement('div');
+    fpAvatar.className = 'fp-avatar';
+    const fpPhoto = first.bobo.photo_url || first.bobo.photo;
+    if (fpPhoto) {
+      const img = document.createElement('img');
+      img.src = fpPhoto;
+      fpAvatar.appendChild(img);
+    } else {
+      fpAvatar.textContent = (first.bobo.nom || first.bobo.name).slice(0, 2).toUpperCase();
+    }
+
+    fpCard.innerHTML = '<span class="crown-emoji">👑</span>';
+    fpCard.appendChild(fpAvatar);
+    fpCard.innerHTML += `
+      <div class="fp-name">${first.bobo.nom || first.bobo.name}</div>
+      <div class="fp-credits">⭐ ${first.totalCredits} crédits</div>
+    `;
+    firstCard.appendChild(fpCard);
+
+    // ── Liste classement ──────────────────────────────────────────────────────
+    rankings.forEach((entry, idx) => {
+      const isFirst = idx === 0;
+      const isLast  = idx === rankings.length - 1 && rankings.length > 1;
+
+      const item = document.createElement('div');
+      item.className = 'ranking-item' + (isFirst ? ' first-place' : '') + (isLast ? ' last-place' : '');
+
+      const rank = document.createElement('div');
+      rank.className = 'rank-number';
+      if (isFirst)       rank.innerHTML = '👑';
+      else if (isLast)   rank.innerHTML = '💩';
+      else               rank.textContent = '#' + (idx + 1);
+      item.appendChild(rank);
+
+      item.appendChild(makeAvatarEl(entry.bobo, 40));
+
+      const info = document.createElement('div');
+      info.className = 'rank-info';
+      info.innerHTML = `<div class="rank-name">${entry.bobo.nom || entry.bobo.name}</div>`;
+
+      const barWrap = document.createElement('div');
+      barWrap.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:4px;';
+      const bar = document.createElement('div');
+      bar.className = 'progress-bar';
+      const fill = document.createElement('div');
+      fill.className = 'progress-fill';
+      fill.style.width = (entry.totalCredits / maxCredits * 100) + '%';
+      bar.appendChild(fill);
+      barWrap.appendChild(bar);
+      info.appendChild(barWrap);
+      item.appendChild(info);
+
+      const cred = document.createElement('div');
+      cred.style.cssText = 'font-family:Fredoka,sans-serif;font-size:1.2rem;color:var(--green);font-weight:700;';
+      cred.textContent = entry.totalCredits + ' ⭐';
+      item.appendChild(cred);
+
+      rankingList.appendChild(item);
+    });
+
+    // ── Gage du dernier ───────────────────────────────────────────────────────
+    if (rankings.length > 1) {
+      const last    = rankings[rankings.length - 1];
+      const deficit = first.totalCredits - last.totalCredits;
+      const gageText = Array.isArray(winGage)
+        ? 'Gage à déterminer (égalité)'
+        : (winGage ? winGage.text : 'Aucun gage proposé');
+
+      lastSection.style.display = 'block';
+      const banner = document.createElement('div');
+      banner.className = 'last-place-banner';
+      banner.innerHTML = `
+        <div class="lp-title">💩 ${last.bobo.nom || last.bobo.name} est dernier·ière !</div>
+        <div style="font-size:0.9rem;color:var(--gray-600);margin-bottom:8px;">
+          Déficit : <strong>${deficit} crédits</strong> de retard sur ${first.bobo.nom || first.bobo.name}
+        </div>
+        <div style="font-size:0.9rem;">
+          🎲 Gage de la semaine : <strong style="color:var(--red);">${gageText}</strong>
+        </div>
+      `;
+      lastSection.appendChild(banner);
+    }
+  }
+
+  render();
+</script>
+
+</body>
+</html>

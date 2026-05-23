@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coloc's Chores — Historique</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<nav class="navbar">
+  <span class="navbar-brand">🏠 Coloc's Chores</span>
+  <a href="index.html"         class="nav-link"><span class="nav-emoji">🏡</span> Accueil</a>
+  <a href="bobo-fini.html"     class="nav-link"><span class="nav-emoji">✅</span> Bobo fini</a>
+  <a href="qui-qui-bosse.html" class="nav-link"><span class="nav-emoji">🏆</span> Classement</a>
+  <a href="requetes.html"      class="nav-link"><span class="nav-emoji">📝</span> Requêtes</a>
+  <a href="historique.html"    class="nav-link active"><span class="nav-emoji">📚</span> Historique</a>
+</nav>
+
+<main class="container">
+  <h1 class="page-title">📚 Historique des semaines</h1>
+
+  <div class="card" style="margin-bottom:20px;background:linear-gradient(135deg,var(--green-light),var(--green-mid));border-color:var(--green);">
+    <div class="card-title">📅 Semaine en cours</div>
+    <div id="currentWeekInfo" style="font-size:0.95rem;color:var(--green-dark);">Chargement…</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📖 Semaines passées</div>
+    <div id="emptyHistory" class="empty-state" style="display:none;">
+      <span class="empty-emoji">📭</span>
+      Aucun historique pour l'instant. La réinitialisation automatique créera une entrée chaque semaine.
+    </div>
+    <div class="table-wrap" id="histTableWrap">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Semaine</th>
+            <th>🥇 1er</th>
+            <th>Crédits</th>
+            <th>💩 Dernier</th>
+            <th>Crédits</th>
+            <th>🎲 Gage</th>
+            <th>✓ Effectué</th>
+          </tr>
+        </thead>
+        <tbody id="histTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:20px;" id="gageUpdateCard">
+    <div class="card-title">✏️ Mettre à jour le gage de la dernière semaine</div>
+    <p style="font-size:0.9rem;color:var(--gray-600);margin-bottom:14px;">
+      Marquer si le gage a été effectué ou non par le dernier du classement.
+    </p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-primary"   onclick="updateLastGage('done')">✅ Gage effectué</button>
+      <button class="btn btn-secondary" onclick="updateLastGage('pending')">⏳ Pas encore fait</button>
+      <button class="btn btn-danger"    onclick="updateLastGage('skipped')">❌ Gage refusé</button>
+    </div>
+  </div>
+
+</main>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="data.js"></script>
+<script src="session.js"></script>
+<script>
+  function showToast(msg, type = 'success') {
+    const tc = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = msg;
+    tc.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  }
+
+  function gageStatusBadge(status) {
+    if (status === 'done')    return '<span class="badge badge-green">✅ Oui</span>';
+    if (status === 'skipped') return '<span class="badge badge-red">❌ Refusé</span>';
+    return '<span class="badge badge-amber">⏳ En attente</span>';
+  }
+
+  async function renderCurrentWeek() {
+    const [weekNum, rankings] = await Promise.all([getCurrentWeekNumber(), getRankings()]);
+    const el = document.getElementById('currentWeekInfo');
+
+    if (!rankings.length) {
+      el.innerHTML = `Semaine <strong>#${weekNum}</strong> — Aucune donnée encore.`;
+      return;
+    }
+
+    const first = rankings[0];
+    const last  = rankings[rankings.length - 1];
+    el.innerHTML = `
+      <strong>Semaine #${weekNum}</strong>&nbsp;&nbsp;
+      🥇 <strong>${first.bobo.nom || first.bobo.name}</strong> (${first.totalCredits} ⭐)
+      &nbsp;·&nbsp;
+      💩 <strong>${last.bobo.nom || last.bobo.name}</strong> (${last.totalCredits} ⭐)
+    `;
+  }
+
+  async function renderHistory() {
+    const history  = await getHistory();
+    const tbody    = document.getElementById('histTableBody');
+    const empty    = document.getElementById('emptyHistory');
+    const wrap     = document.getElementById('histTableWrap');
+    const card     = document.getElementById('gageUpdateCard');
+
+    tbody.innerHTML = '';
+
+    if (!history.length) {
+      empty.style.display = 'block';
+      wrap.style.display  = 'none';
+      card.style.display  = 'none';
+      return;
+    }
+
+    empty.style.display = 'none';
+    wrap.style.display  = '';
+    card.style.display  = '';
+
+    [...history].reverse().forEach(entry => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>Semaine ${entry.week}</td>
+        <td style="font-weight:700;">${entry.first ? entry.first.name : '—'}</td>
+        <td>${entry.first ? '<span class="badge badge-green">⭐ ' + entry.first.credits + '</span>' : '—'}</td>
+        <td style="font-weight:700;">${entry.last ? entry.last.name : '—'}</td>
+        <td>${entry.last ? '<span class="badge badge-red">⭐ ' + entry.last.credits + '</span>' : '—'}</td>
+        <td style="max-width:200px;font-size:0.85rem;">${entry.gage}</td>
+        <td>${gageStatusBadge(entry.gageStatus)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function updateLastGage(status) {
+    const history = await getHistory();
+    if (!history.length) { showToast('Aucun historique à mettre à jour !', 'error'); return; }
+    await updateLastGageStatus(status);
+    await renderHistory();
+    const labels = { done: 'Gage marqué comme effectué ✅', pending: 'Gage en attente ⏳', skipped: 'Gage marqué comme refusé ❌' };
+    showToast(labels[status] || 'Mis à jour !');
+  }
+
+  async function init() {
+    await Promise.all([renderCurrentWeek(), renderHistory()]);
+  }
+
+  init();
+</script>
+
+</body>
+</html>

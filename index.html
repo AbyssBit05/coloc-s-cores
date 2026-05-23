@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coloc's Chores — Accueil</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<nav class="navbar">
+  <span class="navbar-brand">🏠 Coloc's Chores</span>
+  <a href="index.html"         class="nav-link active"><span class="nav-emoji">🏡</span> Accueil</a>
+  <a href="bobo-fini.html"     class="nav-link"><span class="nav-emoji">✅</span> Bobo fini</a>
+  <a href="qui-qui-bosse.html" class="nav-link"><span class="nav-emoji">🏆</span> Classement</a>
+  <a href="requetes.html"      class="nav-link"><span class="nav-emoji">📝</span> Requêtes</a>
+  <a href="historique.html"    class="nav-link"><span class="nav-emoji">📚</span> Historique</a>
+</nav>
+
+<main class="container">
+  <h1 class="page-title">🏠 Bienvenue chez les colocs !</h1>
+
+  <div class="two-col">
+
+    <!-- ── Bobos ── -->
+    <div>
+      <div class="card">
+        <div class="card-title">👥 Ajouter un bobo</div>
+        <div class="form-group">
+          <label class="form-label">Pseudo</label>
+          <input type="text" id="boboName" class="form-input" maxlength="20" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Photo (optionnelle)</label>
+          <div class="avatar-upload">
+            <input type="file" id="boboPhoto" accept="image/*" />
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="handleAddBobo()">➕ Ajouter</button>
+      </div>
+      <div id="boboList" class="pills-list"></div>
+    </div>
+
+    <!-- ── Tâches ── -->
+    <div>
+      <div class="card">
+        <div class="card-title">🧹 Proposer une tâche</div>
+        <div class="form-group">
+          <label class="form-label">Nom de la tâche</label>
+          <input type="text" id="taskName" class="form-input" maxlength="50" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valeur en crédits</label>
+          <div class="credit-selector">
+            <button class="credit-btn" data-val="1" onclick="selectCredit(1)">1</button>
+            <button class="credit-btn" data-val="2" onclick="selectCredit(2)">2</button>
+            <button class="credit-btn" data-val="3" onclick="selectCredit(3)">3</button>
+            <button class="credit-btn" data-val="4" onclick="selectCredit(4)">4</button>
+            <button class="credit-btn" data-val="5" onclick="selectCredit(5)">5</button>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="handleAddTask()">📋 Proposer</button>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <div class="card-title">📋 Tâches</div>
+        <div class="table-wrap">
+          <table id="taskTable">
+            <thead>
+              <tr>
+                <th class="col-task">Tâche</th>
+                <th>Crédits</th>
+                <th>Statut</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="taskTableBody"></tbody>
+          </table>
+        </div>
+        <div id="taskEmpty" class="empty-state" style="display:none;">
+          <span class="empty-emoji">🧹</span> Aucune tâche pour l'instant !
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Gages ── -->
+  <div class="card" style="margin-top:24px;">
+    <div class="card-title">😈 Gages de la semaine</div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px;">
+      <div style="flex:1;min-width:200px;">
+        <label class="form-label">Proposer un gage</label>
+        <input type="text" id="gageText" class="form-input" />
+      </div>
+      <button class="btn btn-primary" onclick="handleAddGage()">🎲 Proposer</button>
+    </div>
+    <div id="tieBanner" class="tie-banner" style="display:none;">
+      ⚠️ <span id="tieBannerText"></span>
+    </div>
+    <div id="gageList"></div>
+    <div id="gageEmpty" class="empty-state" style="display:none;">
+      <span class="empty-emoji">🎲</span> Aucun gage proposé !
+    </div>
+  </div>
+
+</main>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="data.js"></script>
+<script src="session.js"></script>
+<script>
+  let selectedCredit = null;
+
+  window.onUserSelected = async function () { await renderGages(); };
+
+  // ── Utilitaires ──────────────────────────────────────────────────────────────
+
+  function showToast(msg, type = 'success') {
+    const tc = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = msg;
+    tc.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  }
+
+  function makeAvatarEl(bobo, size = 30) {
+    const el = document.createElement('div');
+    el.className = 'avatar';
+    el.style.width  = size + 'px';
+    el.style.height = size + 'px';
+    el.style.fontSize = (size * 0.4) + 'px';
+    const photo = bobo.photo_url || bobo.photo;
+    if (photo) {
+      const img = document.createElement('img');
+      img.src = photo;
+      el.appendChild(img);
+    } else {
+      el.textContent = (bobo.nom || bobo.name).slice(0, 2).toUpperCase();
+    }
+    return el;
+  }
+
+  // ── Crédits ──────────────────────────────────────────────────────────────────
+
+  function selectCredit(val) {
+    selectedCredit = val;
+    document.querySelectorAll('.credit-btn').forEach(btn => {
+      btn.classList.toggle('active', parseInt(btn.dataset.val) === val);
+    });
+  }
+
+  // ── Bobos ────────────────────────────────────────────────────────────────────
+
+  async function handleAddBobo() {
+    const nameInput = document.getElementById('boboName');
+    const nom = nameInput.value.trim();
+    if (!nom) { showToast('Entre un pseudo !', 'error'); return; }
+
+    const existing = await getBobos();
+    if (existing.some(b => b.nom.toLowerCase() === nom.toLowerCase())) {
+      showToast('Ce pseudo existe déjà !', 'error'); return;
+    }
+
+    const fileInput = document.getElementById('boboPhoto');
+    const file = fileInput.files[0];
+
+    const finish = async (photo_url) => {
+      await addBobo(nom, photo_url);
+      nameInput.value = '';
+      fileInput.value = '';
+      await renderBobos();
+      showToast(`${nom} a rejoint la coloc ! 🎉`);
+      if (!getCurrentUser()) await showUserModal();
+    };
+
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = e => finish(e.target.result);
+      reader.readAsDataURL(file);
+    } else {
+      await finish(null);
+    }
+  }
+
+  async function renderBobos() {
+    const bobos = await getBobos();
+    const list = document.getElementById('boboList');
+    list.innerHTML = '';
+    bobos.forEach(bobo => {
+      const pill = document.createElement('div');
+      pill.className = 'pill';
+      pill.appendChild(makeAvatarEl(bobo));
+      const span = document.createElement('span');
+      span.textContent = bobo.nom;
+      pill.appendChild(span);
+      list.appendChild(pill);
+    });
+  }
+
+  // ── Tâches ───────────────────────────────────────────────────────────────────
+
+  async function handleAddTask() {
+    const nameInput = document.getElementById('taskName');
+    const nom = nameInput.value.trim();
+    if (!nom) { showToast('Nomme la tâche !', 'error'); return; }
+    if (!selectedCredit) { showToast('Choisis une valeur en crédits !', 'error'); return; }
+
+    await addTask(nom, selectedCredit);
+    nameInput.value = '';
+    selectedCredit = null;
+    document.querySelectorAll('.credit-btn').forEach(b => b.classList.remove('active'));
+    await renderTasks();
+    showToast(`Tâche "${nom}" proposée !`);
+  }
+
+  async function renderTasks() {
+    const [tasks, bobos] = await Promise.all([getTasks(), getBobos()]);
+    const tbody = document.getElementById('taskTableBody');
+    const empty = document.getElementById('taskEmpty');
+    const user  = getCurrentUser();
+
+    tbody.innerHTML = '';
+
+    if (!tasks.length) {
+      document.getElementById('taskTable').style.display = 'none';
+      empty.style.display = 'block';
+      return;
+    }
+    document.getElementById('taskTable').style.display = '';
+    empty.style.display = 'none';
+
+    tasks.forEach(task => {
+      const tr = document.createElement('tr');
+
+      const tdName = document.createElement('td');
+      tdName.className = 'col-task';
+      tdName.textContent = task.name;
+      tr.appendChild(tdName);
+
+      const tdCred = document.createElement('td');
+      tdCred.innerHTML = `<span class="badge badge-green">⭐ ${task.credits}</span>`;
+      tr.appendChild(tdCred);
+
+      const tdStatus = document.createElement('td');
+      if (task.status === 'validated') {
+        tdStatus.innerHTML = '<span class="badge badge-green">✅ Validé</span>';
+      } else {
+        const yes = Object.values(task.votes).filter(Boolean).length;
+        tdStatus.innerHTML = `<span class="badge badge-amber">🗳️ Vote ${yes}/${bobos.length || 1}</span>`;
+      }
+      tr.appendChild(tdStatus);
+
+      const tdAction = document.createElement('td');
+      if (task.status === 'vote') {
+        if (!user) {
+          tdAction.innerHTML = '<span style="font-size:0.8rem;color:var(--gray-400);">Identifie-toi pour voter</span>';
+        } else {
+          const myVote = task.votes[user.id];
+          const wrap = document.createElement('div');
+          wrap.style.cssText = 'display:flex;gap:6px;align-items:center;';
+
+          const btnYes = document.createElement('button');
+          btnYes.className = 'btn btn-secondary btn-sm';
+          if (myVote === true) btnYes.style.cssText = 'border-color:var(--green);background:var(--green);color:#fff;';
+          btnYes.textContent = '👍';
+          btnYes.onclick = async () => {
+            const result = await voteTask(task.id, user.id, true);
+            await renderTasks();
+            if (result && result.status === 'validated') showToast(`Tâche "${task.name}" validée ! 🎉`);
+            else showToast('Vote enregistré !');
+          };
+
+          const btnNo = document.createElement('button');
+          btnNo.className = 'btn btn-danger btn-sm';
+          if (myVote === false) btnNo.style.cssText = 'background:var(--red);color:#fff;';
+          btnNo.textContent = '👎';
+          btnNo.onclick = async () => {
+            await voteTask(task.id, user.id, false);
+            await renderTasks();
+            showToast('Vote enregistré !');
+          };
+
+          wrap.appendChild(btnYes);
+          wrap.appendChild(btnNo);
+          tdAction.appendChild(wrap);
+        }
+      } else {
+        tdAction.innerHTML = '—';
+      }
+      tr.appendChild(tdAction);
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ── Gages ────────────────────────────────────────────────────────────────────
+
+  async function handleAddGage() {
+    const text = document.getElementById('gageText').value.trim();
+    if (!text) { showToast('Décris le gage !', 'error'); return; }
+    await addGage(text);
+    document.getElementById('gageText').value = '';
+    await renderGages();
+    showToast('Gage proposé ! 😈');
+  }
+
+  async function handleVoteGage(gageId, isLike) {
+    const user = getCurrentUser();
+    if (!user) { showToast('Identifie-toi pour voter !', 'error'); return; }
+    await voteGage(gageId, user.id, isLike);
+    await renderGages();
+    showToast('Vote gage enregistré !');
+  }
+
+  async function renderGages() {
+    const [gages, bobos] = await Promise.all([getGages(), getBobos()]);
+    const user      = getCurrentUser();
+    const list      = document.getElementById('gageList');
+    const empty     = document.getElementById('gageEmpty');
+    const tieBanner = document.getElementById('tieBanner');
+    const winning   = await getWinningGage();
+
+    list.innerHTML = '';
+
+    if (!gages.length) {
+      empty.style.display = 'block';
+      tieBanner.style.display = 'none';
+      return;
+    }
+    empty.style.display = 'none';
+
+    if (Array.isArray(winning)) {
+      tieBanner.style.display = 'flex';
+      const rankings = await getRankings();
+      const last = rankings[rankings.length - 1];
+      document.getElementById('tieBannerText').textContent =
+        `Égalité ! ${last ? last.bobo.nom : '?'} (dernier du classement) choisit le gage.`;
+    } else {
+      tieBanner.style.display = 'none';
+    }
+
+    const winId = Array.isArray(winning) ? null : (winning ? winning.id : null);
+
+    gages.forEach(gage => {
+      const div = document.createElement('div');
+      div.className = 'gage-item' + (gage.id === winId ? ' winning' : '');
+
+      const textEl = document.createElement('div');
+      textEl.className = 'gage-text';
+      textEl.textContent = (gage.id === winId ? '🏆 ' : '') + gage.text;
+      div.appendChild(textEl);
+
+      const likerNames    = gage.likes.map(id    => (bobos.find(b => b.id === id) || {}).nom || '?');
+      const dislikerNames = gage.dislikes.map(id => (bobos.find(b => b.id === id) || {}).nom || '?');
+      const notVoted      = bobos.filter(b => ![...gage.likes, ...gage.dislikes].includes(b.id));
+
+      const voteRow = document.createElement('div');
+      voteRow.className = 'vote-row';
+
+      const liked    = user && gage.likes.includes(user.id);
+      const disliked = user && gage.dislikes.includes(user.id);
+
+      const likeBtn = document.createElement('button');
+      likeBtn.className = 'vote-btn like' + (liked ? ' voted' : '');
+      likeBtn.innerHTML = `👍 ${gage.likes.length}`;
+      likeBtn.onclick = () => handleVoteGage(gage.id, true);
+      voteRow.appendChild(likeBtn);
+
+      if (likerNames.length) {
+        const s = document.createElement('span');
+        s.className = 'voter-names';
+        s.textContent = likerNames.join(', ');
+        voteRow.appendChild(s);
+      }
+
+      const dislikeBtn = document.createElement('button');
+      dislikeBtn.className = 'vote-btn dislike' + (disliked ? ' voted' : '');
+      dislikeBtn.innerHTML = `👎 ${gage.dislikes.length}`;
+      dislikeBtn.onclick = () => handleVoteGage(gage.id, false);
+      voteRow.appendChild(dislikeBtn);
+
+      if (dislikerNames.length) {
+        const s = document.createElement('span');
+        s.className = 'voter-names';
+        s.textContent = dislikerNames.join(', ');
+        voteRow.appendChild(s);
+      }
+
+      if (notVoted.length) {
+        const nv = document.createElement('span');
+        nv.className = 'voter-names';
+        nv.textContent = '⏳ ' + notVoted.map(b => b.nom).join(', ') + ' n\'ont pas voté';
+        voteRow.appendChild(nv);
+      }
+
+      div.appendChild(voteRow);
+      list.appendChild(div);
+    });
+  }
+
+  // ── Init ─────────────────────────────────────────────────────────────────────
+
+  async function init() {
+    await Promise.all([renderBobos(), renderTasks(), renderGages()]);
+  }
+
+  init();
+</script>
+
+</body>
+</html>
