@@ -10,22 +10,27 @@
 
 <nav class="navbar">
   <span class="navbar-brand">🏠 Coloc's Chores</span>
-  <a href="index.html"         class="nav-link active"><span class="nav-emoji">🏡</span> Accueil</a>
-  <a href="bobo-fini.html"     class="nav-link"><span class="nav-emoji">✅</span> Bobo fini</a>
-  <a href="qui-qui-bosse.html" class="nav-link"><span class="nav-emoji">🏆</span> Classement</a>
-  <a href="requetes.html"      class="nav-link"><span class="nav-emoji">📝</span> Requêtes</a>
-  <a href="historique.html"    class="nav-link"><span class="nav-emoji">📚</span> Historique</a>
+  <button class="burger-btn" id="burgerBtn" aria-label="Ouvrir le menu">☰</button>
+  <div class="nav-links" id="navLinks">
+    <button class="nav-close" id="navClose" aria-label="Fermer le menu">✕</button>
+    <a href="index.html"         class="nav-link active"><span class="nav-emoji">🏡</span> Accueil</a>
+    <a href="bobo-fini.html"     class="nav-link"><span class="nav-emoji">✅</span> Bobo fini</a>
+    <a href="qui-qui-bosse.html" class="nav-link"><span class="nav-emoji">🏆</span> Classement</a>
+    <a href="requetes.html"      class="nav-link"><span class="nav-emoji">📝</span> Requêtes</a>
+    <a href="historique.html"    class="nav-link"><span class="nav-emoji">📚</span> Historique</a>
+  </div>
+  <div class="nav-overlay" id="navOverlay"></div>
 </nav>
 
 <main class="container">
-  <h1 class="page-title">🏠 Bienvenue chez les colocs !</h1>
+  <h1 class="page-title">🏠 Bienvenue à la coloc !</h1>
 
   <div class="two-col">
 
     <!-- ── Bobos ── -->
     <div>
       <div class="card">
-        <div class="card-title">👥 Ajouter un bobo</div>
+        <div class="card-title">👥 Ajouter une bobo</div>
         <div class="form-group">
           <label class="form-label">Pseudo</label>
           <input type="text" id="boboName" class="form-input" maxlength="20" />
@@ -409,6 +414,7 @@
 
   init();
 </script>
+<script src="mobile-nav.js"></script>
 
 </body>
 </html>

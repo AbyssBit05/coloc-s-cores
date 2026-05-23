@@ -618,16 +618,127 @@ th.col-active, td.col-active { background: var(--green-light); }
 
 .last-place-banner .lp-title { font-family: 'Fredoka', sans-serif; font-size: 1.1rem; color: var(--red); margin-bottom: 6px; }
 
-/* ─── Responsive ───────────────────────────────────────────────────────────── */
-@media (max-width: 768px) {
-  .two-col { grid-template-columns: 1fr; }
-  .navbar { overflow-x: auto; gap: 0; }
-  .nav-link { padding: 12px 8px; font-size: 0.8rem; }
-  .navbar-brand { font-size: 1.2rem; }
-  .page-title { font-size: 1.5rem; }
+/* ─── Burger / Mobile Nav (base) ───────────────────────────────────────────── */
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-@media (max-width: 480px) {
-  .navbar-brand { display: none; }
-  .container { padding: 16px 10px; }
+.burger-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  font-size: 1.6rem;
+  cursor: pointer;
+  color: var(--green-dark);
+  padding: 0 4px;
+  min-width: 44px;
+  min-height: 44px;
+  line-height: 1;
+}
+
+.nav-close { display: none; }
+
+.nav-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+  z-index: 199;
+}
+.nav-overlay.open { display: block; }
+
+/* ─── Responsive ───────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Burger button */
+  .burger-btn { display: flex; }
+
+  /* Sliding panel */
+  .nav-links {
+    position: fixed;
+    top: 0;
+    right: -280px;
+    width: 260px;
+    height: 100dvh;
+    background: var(--white);
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0;
+    padding-top: 12px;
+    z-index: 200;
+    box-shadow: var(--shadow-lg);
+    transition: right .28s ease;
+    overflow-y: auto;
+  }
+  .nav-links.open { right: 0; }
+
+  /* Close button */
+  .nav-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-end;
+    min-width: 44px;
+    min-height: 44px;
+    background: none;
+    border: none;
+    font-size: 1.3rem;
+    cursor: pointer;
+    color: var(--gray-600);
+    margin-right: 8px;
+    margin-bottom: 4px;
+  }
+
+  /* Nav links in panel */
+  .nav-link {
+    padding: 15px 20px;
+    font-size: 1rem;
+    border-bottom: 1px solid var(--gray-100);
+    border-left: 3px solid transparent;
+    white-space: normal;
+  }
+  .nav-link.active {
+    border-bottom-color: var(--gray-100);
+    border-left-color: var(--green);
+    background: var(--green-light);
+  }
+
+  /* Navbar shell */
+  .navbar { padding: 0 16px; gap: 0; }
+  .navbar-brand { font-size: 1.2rem; }
+
+  /* Layout */
+  .two-col { grid-template-columns: 1fr; }
+  .container { padding: 16px 12px; }
+  .page-title { font-size: 1.5rem; }
+
+  /* Typography */
+  body { font-size: 16px; }
+
+  /* Buttons — 44px min touch target */
+  .btn { min-height: 44px; font-size: 0.95rem; }
+  .btn-sm { min-height: 36px; }
+
+  /* Form inputs — 44px + 16px font (prevents iOS auto-zoom) */
+  .form-input { min-height: 44px; font-size: 16px; padding: 10px 14px; }
+
+  /* Credit buttons */
+  .credit-btn { width: 44px; height: 44px; font-size: 1rem; }
+
+  /* Vote buttons */
+  .vote-btn { min-height: 44px; padding: 8px 16px; font-size: 0.9rem; }
+
+  /* Completion dots — bigger tap area */
+  .dot, .dot-add { width: 28px; height: 28px; font-size: 1.1rem; }
+
+  /* Toast */
+  .toast-container { bottom: 16px; left: 12px; right: 12px; }
+  .toast { max-width: 100%; }
+
+  /* First place card */
+  .first-place-card { padding: 20px 16px; }
 }
