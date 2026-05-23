@@ -92,23 +92,34 @@
     fpCard.className = 'first-place-card';
     fpCard.style.marginBottom = '20px';
 
+    const crown = document.createElement('span');
+    crown.className = 'crown-emoji';
+    crown.textContent = '👑';
+    fpCard.appendChild(crown);
+
     const fpAvatar = document.createElement('div');
     fpAvatar.className = 'fp-avatar';
     const fpPhoto = first.bobo.photo_url || first.bobo.photo;
     if (fpPhoto) {
       const img = document.createElement('img');
       img.src = fpPhoto;
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
       fpAvatar.appendChild(img);
     } else {
       fpAvatar.textContent = (first.bobo.nom || first.bobo.name).slice(0, 2).toUpperCase();
     }
-
-    fpCard.innerHTML = '<span class="crown-emoji">👑</span>';
     fpCard.appendChild(fpAvatar);
-    fpCard.innerHTML += `
-      <div class="fp-name">${first.bobo.nom || first.bobo.name}</div>
-      <div class="fp-credits">⭐ ${first.totalCredits} crédits</div>
-    `;
+
+    const fpName = document.createElement('div');
+    fpName.className = 'fp-name';
+    fpName.textContent = first.bobo.nom || first.bobo.name;
+    fpCard.appendChild(fpName);
+
+    const fpCredits = document.createElement('div');
+    fpCredits.className = 'fp-credits';
+    fpCredits.textContent = `⭐ ${first.totalCredits} crédits`;
+    fpCard.appendChild(fpCredits);
+
     firstCard.appendChild(fpCard);
 
     // ── Liste classement ──────────────────────────────────────────────────────

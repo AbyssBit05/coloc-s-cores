@@ -8,12 +8,45 @@
 const SUPABASE_URL = 'https://fjohibzfykjhgqzrodxc.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_40c-Q6E--3Q3Z6X8n5hQiA_rUjESAbI';
 
-/** Client Supabase initialisé une seule fois (lazy). */
 function getDb() {
   if (!window._sbClient) {
     window._sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   }
   return window._sbClient;
+}
+
+// ─── Coloc courante (lecture depuis localStorage) ─────────────────────────────
+
+function getCurrentColocId() {
+  try {
+    const raw = localStorage.getItem('currentColoc');
+    if (!raw) return null;
+    return JSON.parse(raw).id;
+  } catch (e) {
+    return null;
+  }
+}
+
+// ─── Colocs ───────────────────────────────────────────────────────────────────
+
+async function getColocByCode(code) {
+  const { data, error } = await getDb()
+    .from('colocs')
+    .select('*')
+    .eq('code', code.trim())
+    .maybeSingle();
+  if (error || !data) return null;
+  return data;
+}
+
+async function createColoc(nom, code) {
+  const { data, error } = await getDb()
+    .from('colocs')
+    .insert({ nom: nom.trim(), code: code.trim() })
+    .select()
+    .single();
+  if (error) { console.error('createColoc:', error.message); return null; }
+  return data;
 }
 
 // ─── Semaine ISO (sync) ───────────────────────────────────────────────────────
@@ -34,19 +67,23 @@ function currentWeek() {
 // ─── Bobos ────────────────────────────────────────────────────────────────────
 
 async function getBobos() {
+  const coloc_id = getCurrentColocId();
+  if (!coloc_id) return [];
   const { data, error } = await getDb()
     .from('bobos')
     .select('*')
+    .eq('coloc_id', coloc_id)
     .order('created_at', { ascending: true });
   if (error) { console.error('getBobos:', error.message); return []; }
-  // Expose name / photo pour la compatibilité avec le reste du code UI
   return data.map(b => ({ ...b, name: b.nom, photo: b.photo_url }));
 }
 
 async function addBobo(nom, photo_url = null) {
+  const coloc_id = getCurrentColocId();
+  if (!coloc_id) return null;
   const { data, error } = await getDb()
     .from('bobos')
-    .insert({ nom, photo_url, credits: 0 })
+    .insert({ nom, photo_url, credits: 0, coloc_id })
     .select()
     .single();
   if (error) { console.error('addBobo:', error.message); return null; }
@@ -63,7 +100,6 @@ async function getBoboById(id) {
   return { ...data, name: data.nom, photo: data.photo_url };
 }
 
-// Ajuste les crédits bonus (résultats de requêtes approuvées)
 async function _adjustBoboCredits(boboId, delta) {
   const { data: bobo, error: fe } = await getDb()
     .from('bobos').select('credits').eq('id', boboId).single();
@@ -77,9 +113,12 @@ async function _adjustBoboCredits(boboId, delta) {
 // ─── Tâches ───────────────────────────────────────────────────────────────────
 
 async function getTasks() {
+  const coloc_id = getCurrentColocId();
+  if (!coloc_id) return [];
   const { data, error } = await getDb()
     .from('taches')
     .select('*')
+    .eq('coloc_id', coloc_id)
     .order('created_at', { ascending: true });
   if (error) { console.error('getTasks:', error.message); return []; }
   return data.map(t => ({
@@ -92,11 +131,13 @@ async function getTasks() {
 }
 
 async function addTask(nom, credits) {
+  const coloc_id = getCurrentColocId();
+  if (!coloc_id) return null;
   const bobos = await getBobos();
   const statut = bobos.length === 0 ? 'validated' : 'vote';
   const { data, error } = await getDb()
     .from('taches')
-    .insert({ nom, credits: parseInt(credits), statut, votes: {} })
+    .insert({ nom, credits: parseInt(credits), statut, votes: {}, coloc_id })
     .select()
     .single();
   if (error) { console.error('addTask:', error.message); return null; }
@@ -127,9 +168,12 @@ async function voteTask(taskId, boboId, approve) {
 // ─── Gages ────────────────────────────────────────────────────────────────────
 
 async function getGages() {
+  const coloc_id = getCurrentColocId();
+  if (!coloc_id) return [];
   const { data, error } = await getDb()
     .from('gages')
     .select('*')
+    .eq('coloc_id', coloc_id)
     .eq('semaine', currentWeek())
     .order('created_at', { ascending: true });
   if (error) { console.error('getGages:', error.message); return []; }
@@ -142,9 +186,11 @@ async function getGages() {
 }
 
 async function addGage(description) {
+  const coloc_id = getCurrentColocId();
+  if (!coloc_id) return null;
   const { data, error } = await getDb()
     .from('gages')
-    .insert({ description, votes_pour: [], votes_contre: [], votants: [], semaine: currentWeek(), statut: 'active' })
+    .insert({ description, votes_pour: [], votes_contre: [], votants: [], semaine: currentWeek(), statut: 'active', coloc_id })
     .select()
     .single();
   if (error) { console.error('addGage:', error.message); return null; }
@@ -184,22 +230,27 @@ async function getWinningGage() {
 // ─── Occurrences (Bobo fini) ──────────────────────────────────────────────────
 
 async function getCompletion(taskId, boboId) {
+  const coloc_id = getCurrentColocId();
+  if (!coloc_id) return 0;
   const { data } = await getDb()
     .from('occurrences')
     .select('count')
     .eq('tache_id', taskId)
     .eq('bobo_id', boboId)
     .eq('semaine', currentWeek())
+    .eq('coloc_id', coloc_id)
     .maybeSingle();
   return data ? data.count : 0;
 }
 
 async function setCompletion(taskId, boboId, count) {
+  const coloc_id = getCurrentColocId();
+  if (!coloc_id) return;
   const { error } = await getDb()
     .from('occurrences')
     .upsert(
-      { bobo_id: boboId, tache_id: taskId, semaine: currentWeek(), count },
-      { onConflict: 'bobo_id,tache_id,semaine' }
+      { bobo_id: boboId, tache_id: taskId, semaine: currentWeek(), count, coloc_id },
+      { onConflict: 'bobo_id,tache_id,semaine,coloc_id' }
     );
   if (error) console.error('setCompletion:', error.message);
 }
@@ -214,12 +265,14 @@ async function decrementCompletion(taskId, boboId) {
   if (current > 0) await setCompletion(taskId, boboId, current - 1);
 }
 
-/** Retourne toutes les occurrences de la semaine courante (pour pré-chargement). */
 async function getAllCompletionsForWeek() {
+  const coloc_id = getCurrentColocId();
+  if (!coloc_id) return [];
   const { data, error } = await getDb()
     .from('occurrences')
     .select('*')
-    .eq('semaine', currentWeek());
+    .eq('semaine', currentWeek())
+    .eq('coloc_id', coloc_id);
   if (error) { console.error('getAllCompletionsForWeek:', error.message); return []; }
   return data || [];
 }
@@ -236,7 +289,7 @@ async function getRankings() {
 
   return bobos
     .map(bobo => {
-      let totalCredits = bobo.credits || 0; // bonus de requêtes
+      let totalCredits = bobo.credits || 0;
       validTasks.forEach(task => {
         const occ = occs.find(o => o.bobo_id === bobo.id && o.tache_id === task.id);
         totalCredits += (occ ? occ.count : 0) * task.credits;
@@ -249,9 +302,12 @@ async function getRankings() {
 // ─── Requêtes ─────────────────────────────────────────────────────────────────
 
 async function getRequests() {
+  const coloc_id = getCurrentColocId();
+  if (!coloc_id) return [];
   const { data, error } = await getDb()
     .from('requetes')
     .select('*')
+    .eq('coloc_id', coloc_id)
     .order('created_at', { ascending: true });
   if (error) { console.error('getRequests:', error.message); return []; }
   return data.map(r => ({
@@ -267,9 +323,11 @@ async function getRequests() {
 }
 
 async function addRequest(situation, demande, auteur = null) {
+  const coloc_id = getCurrentColocId();
+  if (!coloc_id) return null;
   const { data, error } = await getDb()
     .from('requetes')
-    .insert({ auteur, situation, demande, statut: 'pending', votes_pour: [], votes_contre: [], votants: [] })
+    .insert({ auteur, situation, demande, statut: 'pending', votes_pour: [], votes_contre: [], votants: [], coloc_id })
     .select()
     .single();
   if (error) { console.error('addRequest:', error.message); return null; }
@@ -319,11 +377,6 @@ async function voteRequest(requestId, boboId, isLike) {
   };
 }
 
-/**
- * Parse et applique une demande de crédit au format strict :
- *   "retirer X crédits à Prénom"  →  soustrait X à bobos.credits
- *   "ajouter X crédits à Prénom"  →  ajoute    X à bobos.credits
- */
 async function appliquerRequete(requete) {
   const raw   = (requete.demand || '').trim();
   const match = raw.match(/^(retirer|ajouter)\s+(\d+)\s+cr[eé]dits?\s+[aà]\s+(.+)$/i);
@@ -349,9 +402,12 @@ async function appliquerRequete(requete) {
 // ─── Historique ───────────────────────────────────────────────────────────────
 
 async function getHistory() {
+  const coloc_id = getCurrentColocId();
+  if (!coloc_id) return [];
   const { data, error } = await getDb()
     .from('historique')
     .select('*')
+    .eq('coloc_id', coloc_id)
     .order('semaine', { ascending: true });
   if (error) { console.error('getHistory:', error.message); return []; }
   return data.map(h => ({
@@ -365,9 +421,12 @@ async function getHistory() {
 }
 
 async function updateLastGageStatus(status) {
+  const coloc_id = getCurrentColocId();
+  if (!coloc_id) return;
   const { data: rows } = await getDb()
     .from('historique')
     .select('id')
+    .eq('coloc_id', coloc_id)
     .order('semaine', { ascending: false })
     .limit(1);
   if (!rows || !rows.length) return;
@@ -375,15 +434,20 @@ async function updateLastGageStatus(status) {
 }
 
 async function getCurrentWeekNumber() {
+  const coloc_id = getCurrentColocId();
+  if (!coloc_id) return 1;
   const { data } = await getDb()
     .from('historique')
     .select('semaine')
+    .eq('coloc_id', coloc_id)
     .order('semaine', { ascending: false })
     .limit(1);
   return data && data.length ? data[0].semaine + 1 : 1;
 }
 
 async function archiveAndResetWeek(gageStatus = 'pending') {
+  const coloc_id = getCurrentColocId();
+  if (!coloc_id) return;
   const [rankings, winGage, weekNum] = await Promise.all([
     getRankings(),
     getWinningGage(),
@@ -407,23 +471,26 @@ async function archiveAndResetWeek(gageStatus = 'pending') {
     dernier_credits: last  ? last.totalCredits  : 0,
     gage:            gageText,
     gage_effectue:   gageStatus,
+    coloc_id,
   });
-  // Occurrences et gages sont scopés par semaine → la nouvelle semaine repart à zéro automatiquement
 }
 
 // ─── Réinitialisation auto (semaine ISO) ──────────────────────────────────────
 
 async function checkAndResetWeekIfNeeded() {
+  const coloc_id = getCurrentColocId();
+  if (!coloc_id) return;
+
   const currentKey = currentWeek();
-  const storedKey  = localStorage.getItem('cc_iso_week');
+  const storedKey  = localStorage.getItem('cc_iso_week_' + coloc_id);
 
   if (!storedKey) {
-    localStorage.setItem('cc_iso_week', currentKey);
+    localStorage.setItem('cc_iso_week_' + coloc_id, currentKey);
     return;
   }
 
   if (storedKey !== currentKey) {
     await archiveAndResetWeek('pending');
-    localStorage.setItem('cc_iso_week', currentKey);
+    localStorage.setItem('cc_iso_week_' + coloc_id, currentKey);
   }
 }

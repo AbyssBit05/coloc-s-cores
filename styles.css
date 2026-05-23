@@ -586,24 +586,24 @@ th.col-active, td.col-active { background: var(--green-light); }
   box-shadow: var(--shadow-lg);
 }
 
-.first-place-card .crown-emoji { font-size: 3rem; display: block; margin-bottom: 8px; }
-.first-place-card .fp-name { font-family: 'Fredoka', sans-serif; font-size: 2rem; color: var(--green-dark); }
+.first-place-card .crown-emoji { font-size: 3.5rem; display: block; margin-bottom: 4px; }
+.first-place-card .fp-name { font-family: 'Fredoka', sans-serif; font-size: 2rem; color: var(--green-dark); margin-top: 12px; }
 .first-place-card .fp-credits { font-size: 1.1rem; color: var(--green); font-weight: 700; }
 
 .first-place-card .fp-avatar {
-  width: 80px;
-  height: 80px;
+  width: 160px;
+  height: 160px;
   border-radius: 50%;
   background: var(--green);
   color: var(--white);
   font-family: 'Fredoka', sans-serif;
-  font-size: 2.5rem;
+  font-size: 4rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 12px;
-  border: 3px solid var(--white);
-  box-shadow: var(--shadow);
+  margin: 0 auto 4px;
+  border: 4px solid var(--white);
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
 }
 
@@ -618,6 +618,25 @@ th.col-active, td.col-active { background: var(--green-light); }
 
 .last-place-banner .lp-title { font-family: 'Fredoka', sans-serif; font-size: 1.1rem; color: var(--red); margin-bottom: 6px; }
 
+/* ─── Coloc navbar badge ────────────────────────────────────────────────────── */
+#navbarColoc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  background: var(--green-light);
+  border: 1.5px solid var(--green-mid);
+  border-radius: 99px;
+  flex-shrink: 0;
+}
+
+#navbarColoc .coloc-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--green-dark);
+  white-space: nowrap;
+}
+
 /* ─── Burger / Mobile Nav (base) ───────────────────────────────────────────── */
 .nav-links {
   display: flex;
@@ -631,12 +650,12 @@ th.col-active, td.col-active { background: var(--green-light); }
   justify-content: center;
   background: none;
   border: none;
-  font-size: 1.6rem;
+  font-size: 2rem;
   cursor: pointer;
   color: var(--green-dark);
-  padding: 0 4px;
-  min-width: 44px;
-  min-height: 44px;
+  padding: 0 6px;
+  min-width: 52px;
+  min-height: 52px;
   line-height: 1;
 }
 
@@ -706,6 +725,19 @@ th.col-active, td.col-active { background: var(--green-light); }
     border-left-color: var(--green);
     background: var(--green-light);
   }
+
+  /* Coloc badge in mobile panel */
+  #navbarColoc {
+    border-radius: 0;
+    border: none;
+    border-bottom: 1px solid var(--gray-200);
+    padding: 14px 20px;
+    background: var(--green-light);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  #navbarColoc .coloc-name { font-size: 1rem; white-space: normal; }
 
   /* Navbar shell */
   .navbar { padding: 0 16px; gap: 0; }
