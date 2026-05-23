@@ -174,7 +174,11 @@
     const file = fileInput.files[0];
 
     const finish = async (photo_url) => {
-      await addBobo(nom, photo_url);
+      const newBobo = await addBobo(nom, photo_url);
+      if (!newBobo) {
+        showToast('Erreur lors de l\'ajout. Vérifie ta connexion.', 'error');
+        return;
+      }
       nameInput.value = '';
       fileInput.value = '';
       await renderBobos();
@@ -184,7 +188,8 @@
 
     if (file) {
       const reader = new FileReader();
-      reader.onload = e => finish(e.target.result);
+      reader.onload = async (e) => { await finish(e.target.result); };
+      reader.onerror = () => showToast('Impossible de lire la photo.', 'error');
       reader.readAsDataURL(file);
     } else {
       await finish(null);
@@ -411,6 +416,8 @@
   async function init() {
     await Promise.all([renderBobos(), renderTasks(), renderGages()]);
   }
+
+  window.onColocReady = init;
 
   init();
 </script>

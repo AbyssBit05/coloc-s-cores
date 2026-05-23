@@ -379,7 +379,10 @@ async function _initAfterColoc() {
   // 4. Afficher l'identité dans la navbar
   updateNavbarUser();
 
-  // 5. Afficher la modale bobo si besoin
+  // 5. Re-render la page courante si elle expose un hook onColocReady
+  if (typeof window.onColocReady === 'function') await window.onColocReady();
+
+  // 6. Afficher la modale bobo si besoin
   const bobos = await getBobos();
   if (bobos.length > 0 && !getCurrentUser()) {
     await showUserModal();
