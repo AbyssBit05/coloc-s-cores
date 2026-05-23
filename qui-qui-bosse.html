@@ -46,6 +46,20 @@
 <script src="data.js"></script>
 <script src="session.js"></script>
 <script>
+  function getRank(totalCredits, firstCredits) {
+    const gap = firstCredits - totalCredits;
+    if (gap >= 30) return { emoji: '🍆', label: 'Énorme Branleur', type: 'neg-3' };
+    if (gap >= 20) return { emoji: '💩', label: 'Grosse Merde',    type: 'neg-2' };
+    if (gap >= 10) return { emoji: '😴', label: 'Flemmard',        type: 'neg-1' };
+    if (totalCredits >= 50) return { emoji: '👑', label: 'Roi de la Bonniche', type: 'pos-6' };
+    if (totalCredits >= 25) return { emoji: '💠', label: 'Platine',            type: 'pos-5' };
+    if (totalCredits >= 15) return { emoji: '💎', label: 'Diamant',            type: 'pos-4' };
+    if (totalCredits >= 10) return { emoji: '🥇', label: 'Or',                 type: 'pos-3' };
+    if (totalCredits >=  5) return { emoji: '🥈', label: 'Argent',             type: 'pos-2' };
+    if (totalCredits >=  3) return { emoji: '🥉', label: 'Bronze',             type: 'pos-1' };
+    return null;
+  }
+
   function makeAvatarEl(bobo, size = 30) {
     const el = document.createElement('div');
     el.className = 'avatar';
@@ -115,6 +129,15 @@
     fpName.textContent = first.bobo.nom || first.bobo.name;
     fpCard.appendChild(fpName);
 
+    const fpRankData = getRank(first.totalCredits, first.totalCredits);
+    if (fpRankData) {
+      const fpBadge = document.createElement('span');
+      fpBadge.className = `rank-badge rank-badge--${fpRankData.type}`;
+      fpBadge.textContent = `${fpRankData.emoji} ${fpRankData.label}`;
+      fpBadge.style.cssText = 'display:inline-flex;margin:6px auto 0;';
+      fpCard.appendChild(fpBadge);
+    }
+
     const fpCredits = document.createElement('div');
     fpCredits.className = 'fp-credits';
     fpCredits.textContent = `⭐ ${first.totalCredits} crédits`;
@@ -141,7 +164,17 @@
 
       const info = document.createElement('div');
       info.className = 'rank-info';
-      info.innerHTML = `<div class="rank-name">${entry.bobo.nom || entry.bobo.name}</div>`;
+      const rankNameEl = document.createElement('div');
+      rankNameEl.className = 'rank-name';
+      rankNameEl.textContent = entry.bobo.nom || entry.bobo.name;
+      info.appendChild(rankNameEl);
+      const rankData = getRank(entry.totalCredits, first.totalCredits);
+      if (rankData) {
+        const badge = document.createElement('span');
+        badge.className = `rank-badge rank-badge--${rankData.type}`;
+        badge.textContent = `${rankData.emoji} ${rankData.label}`;
+        info.appendChild(badge);
+      }
 
       const barWrap = document.createElement('div');
       barWrap.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:4px;';

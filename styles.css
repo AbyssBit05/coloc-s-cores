@@ -607,6 +607,30 @@ th.col-active, td.col-active { background: var(--green-light); }
   overflow: hidden;
 }
 
+/* ─── Rank badges ──────────────────────────────────────────────────────────── */
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 99px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: 'Nunito', sans-serif;
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+.rank-badge--pos-1 { background: #f5e6d3; color: #7a4a25; border: 1px solid #c8925c; } /* Bronze  */
+.rank-badge--pos-2 { background: #efefef; color: #4a4a6a; border: 1px solid #a8a8c0; } /* Argent  */
+.rank-badge--pos-3 { background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; } /* Or      */
+.rank-badge--pos-4 { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; } /* Diamant */
+.rank-badge--pos-5 { background: #e0f2fe; color: #075985; border: 1px solid #38bdf8; } /* Platine */
+.rank-badge--pos-6 { background: #f3e8ff; color: #6d28d9; border: 1px solid #c084fc; } /* Roi     */
+.rank-badge--neg-1 { background: #fff7ed; color: #c2410c; border: 1px solid #fb923c; } /* Flemmard        */
+.rank-badge--neg-2 { background: #fee2e2; color: #991b1b; border: 1px solid #f87171; } /* Grosse Merde    */
+.rank-badge--neg-3 { background: #1f2937; color: #fca5a5; border: 1px solid #ef4444; } /* Énorme Branleur */
+
 /* ─── Last place banner ────────────────────────────────────────────────────── */
 .last-place-banner {
   background: var(--red-light);
