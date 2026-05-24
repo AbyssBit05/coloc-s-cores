@@ -174,9 +174,15 @@
     const file = fileInput.files[0];
 
     const finish = async (photo_url) => {
-      const newBobo = await addBobo(nom, photo_url);
+      let newBobo;
+      try {
+        newBobo = await addBobo(nom, photo_url);
+      } catch (e) {
+        showToast('Erreur Supabase : ' + e.message, 'error');
+        return;
+      }
       if (!newBobo) {
-        showToast('Erreur lors de l\'ajout. Vérifie ta connexion.', 'error');
+        showToast('Coloc introuvable — recharge la page.', 'error');
         return;
       }
       nameInput.value = '';

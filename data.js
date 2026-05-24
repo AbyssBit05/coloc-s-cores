@@ -20,11 +20,33 @@ function getDb() {
 function getCurrentColocId() {
   try {
     const raw = localStorage.getItem('currentColoc');
-    if (!raw) return null;
-    return JSON.parse(raw).id;
+    if (!raw) {
+      console.warn('[DEBUG] getCurrentColocId: "currentColoc" absent du localStorage');
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed.id) {
+      console.warn('[DEBUG] getCurrentColocId: objet présent mais id invalide :', parsed);
+      return null;
+    }
+    return parsed.id;
   } catch (e) {
+    console.error('[DEBUG] getCurrentColocId: erreur JSON.parse :', e);
     return null;
   }
+}
+
+// Helper écritures : affiche la modale si coloc_id est manquant
+async function _requireColoc(context) {
+  const raw      = localStorage.getItem('currentColoc');
+  const coloc_id = getCurrentColocId();
+  if (!coloc_id) {
+    console.warn(`[DEBUG] ${context} → coloc_id NULL — localStorage :`, raw);
+    if (typeof showColocModal === 'function') await showColocModal();
+    return null;
+  }
+  console.log(`[DEBUG] ${context} → coloc_id :`, coloc_id);
+  return coloc_id;
 }
 
 // ─── Colocs ───────────────────────────────────────────────────────────────────
@@ -69,24 +91,28 @@ function currentWeek() {
 async function getBobos() {
   const coloc_id = getCurrentColocId();
   if (!coloc_id) return [];
+  console.log('[DEBUG] getBobos SELECT → coloc_id :', coloc_id);
   const { data, error } = await getDb()
     .from('bobos')
     .select('*')
     .eq('coloc_id', coloc_id)
     .order('created_at', { ascending: true });
   if (error) { console.error('getBobos:', error.message); return []; }
+  console.log('[DEBUG] getBobos résultat :', data.length, 'bobo(s)');
   return data.map(b => ({ ...b, name: b.nom, photo: b.photo_url }));
 }
 
 async function addBobo(nom, photo_url = null) {
-  const coloc_id = getCurrentColocId();
+  const coloc_id = await _requireColoc('addBobo');
   if (!coloc_id) return null;
+  console.log('[DEBUG] addBobo INSERT → { nom:', nom, ', coloc_id:', coloc_id, '}');
   const { data, error } = await getDb()
     .from('bobos')
     .insert({ nom, photo_url, credits: 0, coloc_id })
     .select()
     .single();
-  if (error) { console.error('addBobo:', error.message); return null; }
+  if (error) { console.error('addBobo:', error.message); throw new Error(error.message); }
+  console.log('[DEBUG] addBobo OK → id :', data.id);
   return { ...data, name: data.nom, photo: data.photo_url };
 }
 
@@ -115,12 +141,14 @@ async function _adjustBoboCredits(boboId, delta) {
 async function getTasks() {
   const coloc_id = getCurrentColocId();
   if (!coloc_id) return [];
+  console.log('[DEBUG] getTasks SELECT → coloc_id :', coloc_id);
   const { data, error } = await getDb()
     .from('taches')
     .select('*')
     .eq('coloc_id', coloc_id)
     .order('created_at', { ascending: true });
   if (error) { console.error('getTasks:', error.message); return []; }
+  console.log('[DEBUG] getTasks résultat :', data.length, 'tâche(s)');
   return data.map(t => ({
     id:      t.id,
     name:    t.nom,
@@ -131,16 +159,18 @@ async function getTasks() {
 }
 
 async function addTask(nom, credits) {
-  const coloc_id = getCurrentColocId();
+  const coloc_id = await _requireColoc('addTask');
   if (!coloc_id) return null;
-  const bobos = await getBobos();
+  const bobos  = await getBobos();
   const statut = bobos.length === 0 ? 'validated' : 'vote';
+  console.log('[DEBUG] addTask INSERT → { nom:', nom, ', credits:', credits, ', coloc_id:', coloc_id, '}');
   const { data, error } = await getDb()
     .from('taches')
     .insert({ nom, credits: parseInt(credits), statut, votes: {}, coloc_id })
     .select()
     .single();
   if (error) { console.error('addTask:', error.message); return null; }
+  console.log('[DEBUG] addTask OK → id :', data.id);
   return { id: data.id, name: data.nom, credits: data.credits, status: data.statut, votes: data.votes || {} };
 }
 
@@ -149,11 +179,11 @@ async function voteTask(taskId, boboId, approve) {
     .from('taches').select('*').eq('id', taskId).single();
   if (fe || !row || row.statut === 'validated') return null;
 
-  const votes  = { ...(row.votes || {}), [boboId]: approve };
-  const bobos  = await getBobos();
+  const votes    = { ...(row.votes || {}), [boboId]: approve };
+  const bobos    = await getBobos();
   const yesCount = Object.values(votes).filter(Boolean).length;
   const majority = Math.floor(bobos.length / 2) + 1;
-  const statut = yesCount >= majority ? 'validated' : 'vote';
+  const statut   = yesCount >= majority ? 'validated' : 'vote';
 
   const { data, error } = await getDb()
     .from('taches')
@@ -170,6 +200,7 @@ async function voteTask(taskId, boboId, approve) {
 async function getGages() {
   const coloc_id = getCurrentColocId();
   if (!coloc_id) return [];
+  console.log('[DEBUG] getGages SELECT → coloc_id :', coloc_id);
   const { data, error } = await getDb()
     .from('gages')
     .select('*')
@@ -177,6 +208,7 @@ async function getGages() {
     .eq('semaine', currentWeek())
     .order('created_at', { ascending: true });
   if (error) { console.error('getGages:', error.message); return []; }
+  console.log('[DEBUG] getGages résultat :', data.length, 'gage(s)');
   return data.map(g => ({
     id:       g.id,
     text:     g.description,
@@ -186,14 +218,16 @@ async function getGages() {
 }
 
 async function addGage(description) {
-  const coloc_id = getCurrentColocId();
+  const coloc_id = await _requireColoc('addGage');
   if (!coloc_id) return null;
+  console.log('[DEBUG] addGage INSERT → { description:', description, ', coloc_id:', coloc_id, '}');
   const { data, error } = await getDb()
     .from('gages')
     .insert({ description, votes_pour: [], votes_contre: [], votants: [], semaine: currentWeek(), statut: 'active', coloc_id })
     .select()
     .single();
   if (error) { console.error('addGage:', error.message); return null; }
+  console.log('[DEBUG] addGage OK → id :', data.id);
   return { id: data.id, text: data.description, likes: [], dislikes: [] };
 }
 
@@ -244,8 +278,9 @@ async function getCompletion(taskId, boboId) {
 }
 
 async function setCompletion(taskId, boboId, count) {
-  const coloc_id = getCurrentColocId();
+  const coloc_id = await _requireColoc('setCompletion');
   if (!coloc_id) return;
+  console.log('[DEBUG] setCompletion UPSERT → { taskId:', taskId, ', boboId:', boboId, ', count:', count, ', coloc_id:', coloc_id, '}');
   const { error } = await getDb()
     .from('occurrences')
     .upsert(
@@ -268,6 +303,7 @@ async function decrementCompletion(taskId, boboId) {
 async function getAllCompletionsForWeek() {
   const coloc_id = getCurrentColocId();
   if (!coloc_id) return [];
+  console.log('[DEBUG] getAllCompletionsForWeek SELECT → coloc_id :', coloc_id);
   const { data, error } = await getDb()
     .from('occurrences')
     .select('*')
@@ -304,12 +340,14 @@ async function getRankings() {
 async function getRequests() {
   const coloc_id = getCurrentColocId();
   if (!coloc_id) return [];
+  console.log('[DEBUG] getRequests SELECT → coloc_id :', coloc_id);
   const { data, error } = await getDb()
     .from('requetes')
     .select('*')
     .eq('coloc_id', coloc_id)
     .order('created_at', { ascending: true });
   if (error) { console.error('getRequests:', error.message); return []; }
+  console.log('[DEBUG] getRequests résultat :', data.length, 'requête(s)');
   return data.map(r => ({
     id:          r.id,
     auteur:      r.auteur,
@@ -323,14 +361,16 @@ async function getRequests() {
 }
 
 async function addRequest(situation, demande, auteur = null) {
-  const coloc_id = getCurrentColocId();
+  const coloc_id = await _requireColoc('addRequest');
   if (!coloc_id) return null;
+  console.log('[DEBUG] addRequest INSERT → { situation:', situation, ', coloc_id:', coloc_id, '}');
   const { data, error } = await getDb()
     .from('requetes')
     .insert({ auteur, situation, demande, statut: 'pending', votes_pour: [], votes_contre: [], votants: [], coloc_id })
     .select()
     .single();
   if (error) { console.error('addRequest:', error.message); return null; }
+  console.log('[DEBUG] addRequest OK → id :', data.id);
   return { id: data.id, situation: data.situation, demand: data.demande, status: data.statut, likes: [], dislikes: [] };
 }
 
@@ -404,6 +444,7 @@ async function appliquerRequete(requete) {
 async function getHistory() {
   const coloc_id = getCurrentColocId();
   if (!coloc_id) return [];
+  console.log('[DEBUG] getHistory SELECT → coloc_id :', coloc_id);
   const { data, error } = await getDb()
     .from('historique')
     .select('*')
@@ -446,7 +487,7 @@ async function getCurrentWeekNumber() {
 }
 
 async function archiveAndResetWeek(gageStatus = 'pending') {
-  const coloc_id = getCurrentColocId();
+  const coloc_id = await _requireColoc('archiveAndResetWeek');
   if (!coloc_id) return;
   const [rankings, winGage, weekNum] = await Promise.all([
     getRankings(),
@@ -461,6 +502,7 @@ async function archiveAndResetWeek(gageStatus = 'pending') {
     ? winGage.map(g => g.text).join(' / ')
     : (winGage ? winGage.text : '—');
 
+  console.log('[DEBUG] archiveAndResetWeek INSERT → coloc_id :', coloc_id);
   await getDb().from('historique').insert({
     semaine:         weekNum,
     premier_id:      first ? first.bobo.id : null,
